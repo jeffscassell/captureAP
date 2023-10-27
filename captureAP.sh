@@ -5,7 +5,9 @@
 
 
 
+###############################
 ########## VARIABLES ##########
+###############################
 
 warning="    [WARNING]"
 error="    [ERROR]"
@@ -20,29 +22,40 @@ dhcpRangeEnd="10.0.0.20"
 dhcpNetmask="255.255.255.0"
 dhcpLeaseTime="12h"
 
+###############################
 ########## FUNCTIONS ##########
+###############################
+#
+# Functions are read, but not executed, until they are called.
 #
 # Commands will return an exit status of 0 if they run successfully (can successfully ping google,
 # grep finds a match for a pattern, etc.). Functions will return the exit status of the last command they ran.
 # If a 0 is returned into an <if> statement, it will execute the code within.
 #
+# If a function accepts arguments, they are in the form of $1, $2, ... for argument 1, argument 2, ...,
+# similar to how scripts accept arguments.
+#
 
 printUsage(){
 	echo "Usage:    captureAP.sh [OPTIONS] <internet-interface> <AP-interface>"
+	echo ""
 	echo ""
 	echo "This script creates a local AP (access point) using hostapd and connects it to the internet"\
 		"via an existing network connection, either ethernet or Wi-Fi. The interfaces will be things"\
 		"such as found in the ifconfig command: wlan0, eth0, etc."
 	echo ""
 	echo "The interface used for the AP is disallowed from being managed by the NetworkManager service."\
-		 "An AP configuration file and dnsmasq configuration file are always required for the AP."
+		"An AP configuration file and dnsmasq configuration file are always required for the AP."
 	echo ""
 	echo "If the required AP and dnsmasq configuration files are missing they will be generated with"\
 		"default settings."
 	echo ""
+	echo "Any settings changed from their defaults using flags (DHCP start/end address, lease time,"\
+		"etc.) persist between script runs."
+	echo ""
 	echo "Options:"
 	echo "    [-h | --help]"
-	echo "        This help screen."
+	echo "        Displays this help screen and exits."
 	echo ""
 	echo "    [-a | --ap-address] <ip-address>"
 	echo "        Set the access point IP address."
@@ -91,6 +104,8 @@ processIsRunning(){ pgrep $1 > /dev/null; }
 # checks iptables to see if the passed interface is already being masqueraded
 # $1=network-interface
 masqueradeRuleExists(){ iptables -t nat -C POSTROUTING -o $1 -j MASQUERADE > /dev/null 2>&1; }
+deleteMasqueradeRule(){ iptables -t nat -D POSTROUTING -o $1 -j MASQUERADE > /dev/null 2>&1; }
+appendMasqueradeRule(){ iptables -t nat -A POSTROUTING -o $1 -j MASQUERADE > /dev/null 2>&1; }
 
 isValidInterface(){ ifconfig $1 > /dev/null 2>&1; }
 isWirelessInterface(){ iwconfig $1 > /dev/null 2>&1; }
@@ -126,7 +141,8 @@ printPass(){ echo "[OK]"; }
 printFail(){ echo "<!>"; }
 
 # uses pass-by-reference (sort of) to update passed variables with passed values
-# $1=variable-to-update, $2=message-to-report, $3=variable-value
+# expects the variable value ($3) to be an IP address
+# $1=variable-to-update, $2=message-to-report, $3=IP-address-variable-value
 setAddress(){
 	if [ -z "$3" ]; then
 		printMissingValueFor "$2"
@@ -260,7 +276,9 @@ validateConfigs(){
 	fi
 }
 
-readVariables(){
+# ensures persistent settings between runs. e.g., if the AP was launched with the DHCP range ending
+# at 10.0.0.50, it uses those settings again
+readApVariablesFromDnsmasqConfig(){
 	[ -e /etc/dnsmasq.conf ] || return  # only execute the rest if the file exists
 
 	# extract the dhcp-range variable's value from dnsmasq.conf
@@ -289,9 +307,24 @@ killRunningAp(){
 	fi
 }
 
+# make sure script is run as root
+checkForRoot(){
+	if [ ! $(id -u) = 0 ]; then
+		echo "$error Script must be run with super user privileges (root). Exiting."
+		exit 1
+	fi
+}
+
 main(){
+	#
+	# these functions are only called from within main()
+	#
+	
+	# the final message printed after finished running
 	printFinished(){
 		echo "Finished."
+		echo ""
+		echo "NOTE: If the AP is not visible, run the script again. It's a known bug."
 		echo ""
 		echo "AP:"
 		echo "         IP Address: $apIpAddress"
@@ -302,13 +335,13 @@ main(){
 		echo "    DHCP Lease Time: $dhcpLeaseTime"
 	}
 
-	# check for existence of hostapd command
+	# check that the <hostapd> command is installed and accessible
 	hostapdInstalled(){ command -v hostapd > /dev/null; }
 
-	enableRouting(){
+	startRouting(){
 		echo -n "Enabling routing... "
 		#sysctl -n net.ipv4.conf.all.forwaring  # will return just the value (1 if already enabled)
-		if sysctl -q net.ipv4.conf.all.forwarding=1; then  # -q suppresses all output
+		if sysctl -q net.ipv4.conf.all.forwarding=1; then  # -q suppresses feedback output
 			printPass
 		else
 			echo ""
@@ -317,21 +350,21 @@ main(){
 		fi
 	}
 
-	enableMasquerade(){
+	startMasquerade(){
 		# check if iptables was previously configured with the other interface and remove if so
 		if masqueradeRuleExists $apInterface; then
 			echo "$warning Removing old iptables rule"
-			iptables -t nat -D POSTROUTING -o $apInterface -j MASQUERADE
+			deleteMasqueradeRule "$apInterface"
 		fi
 		
 		# make sure the correct interface rule is not already there before inserting it
 		if ! masqueradeRuleExists $internetInterface; then
 			echo -n "Enabling IP masquerading... "
-			if iptables -t nat -A POSTROUTING -o $internetInterface -j MASQUERADE; then
+			if appendMasqueradeRule "$internetInterface"; then
 				printPass
 			else
 				printFail
-				echo "$error could not insert IP masquerade rule into <iptables>"
+				echo "$error could not append IP masquerade rule into <iptables>"
 				exit 1
 			fi
 		else
@@ -346,8 +379,8 @@ main(){
 		exit 1
 	fi
 	
-	enableRouting
-	enableMasquerade
+	startRouting
+	startMasquerade
 	
 	########## AP SETUP ##########
 
@@ -361,10 +394,10 @@ main(){
 	fi
 	
 	echo -n "Launching AP... "
-	if hostapd -B ap.conf > ap.log; then
+	if hostapd -B ap.conf > ap.log; then  ############# here lies a bug
 		printPass
 		
-		# write existing interfaces to current file so tear down can be performed with -r
+		# write the interfaces used to current file so tear down can be performed with -r flag
 		sed -i "s/apInterface=\"\"/apInterface=$apInterface/" "$0"
 		sed -i "s/internetInterface=\"\"/internetInterface=$internetInterface/" "$0"
 	else
@@ -408,10 +441,10 @@ main(){
 }
 
 removeAp(){
-	# stop running if no AP interface is assigned from creating AP previously
-	if [ -z "$apInterface" ]; then
-		echo "$error Script was not run previously to create an AP. AP interface cannot"\
-			"be restored because it is unknown"
+	# stop running if either interface variables are empty (assigned values if the AP was launched)
+	if [ -z "$apInterface" ] || [ -z "$internetInterface" ]; then
+		echo "$error Script was not run previously to create an AP. AP interface and/or internet"\
+			"interface cannot be restored because it is unknown"
 		exit
 	fi
 
@@ -428,9 +461,9 @@ removeAp(){
 	systemctl stop dnsmasq
 	
 	# remove iptables IP masquerade rule
-	if iptables -t nat -C POSTROUTING -o $internetInterface -j MASQUERADE > /dev/null 2>&1; then
+	if masqueradeRuleExists "$internetInterface"; then
 		echo "Removing <iptables> IP masquerading rule..."
-		iptables -t nat -D POSTROUTING -o $internetInterface -j MASQUERADE
+		deleteMasqueradeRule "$internetInterface"
 	else
 		echo "<iptables> IP masquerading rule already removed."
 	fi
@@ -447,7 +480,9 @@ removeAp(){
 	echo "Finished."
 }
 
-########## POST ##########
+###################################
+########## PROGRAM START ##########
+###################################
 
 # no arguments were passed with the script
 if [ "$#" = 0 ]; then
@@ -455,13 +490,7 @@ if [ "$#" = 0 ]; then
 	exit 1
 fi
 
-# make sure script is run as root
-if [ ! $(id -u) = 0 ]; then
-	echo "$error Script must be run with super user privileges (root). Exiting."
-	exit 1
-fi
-
-readVariables
+readApVariablesFromDnsmasqConfig
 
 # parse inputs
 while [ "$#" -gt 0 ]; do  # loop while the number of passed arguments is greater than 0
@@ -491,10 +520,13 @@ while [ "$#" -gt 0 ]; do  # loop while the number of passed arguments is greater
 			shift 2
 			;;
 		-r|--remove-ap)
+			checkForRoot
 			removeAp
-			exit
+			exit 0
 			;;
 		*)
+			checkForRoot
+
 			# if $3 is non-zero (3rd arg is present), too many args
 			[ -n "$3" ] && printUsage && exit 1
 
@@ -506,7 +538,7 @@ while [ "$#" -gt 0 ]; do  # loop while the number of passed arguments is greater
 			validateConfigs
 			updateConfigs
 			main
-			shift 2
+			exit 0
 			;;
 	esac
 done
