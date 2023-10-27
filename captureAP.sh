@@ -445,7 +445,7 @@ removeAp(){
 	if [ -z "$apInterface" ] || [ -z "$internetInterface" ]; then
 		echo "$error Script was not run previously to create an AP. AP interface and/or internet"\
 			"interface cannot be restored because it is unknown"
-		exit
+		exit 1
 	fi
 
 	echo "Stopping AP..."
