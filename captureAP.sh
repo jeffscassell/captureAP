@@ -372,6 +372,67 @@ main(){
 		fi
 	}
 
+	stopManagingApInterface(){
+		echo -n "Disallowing AP interface from being managed by <NetworkManager>... "
+		if disallowManagingInterface "$apInterface"; then
+			printPass
+		else
+			printFail
+			echo "$error could not prevent <NetworkManager> from managing <$apInterface>"
+			exit 1
+		fi
+	}
+
+	launchAp(){
+		echo -n "Launching AP... "
+		if hostapd -B ap.conf > ap.log; then  ############# here lies a bug
+			printPass
+			
+			# write the interfaces used to current file so tear down can be performed with -r flag
+			sed -i "s/apInterface=\"\"/apInterface=$apInterface/" "$0"
+			sed -i "s/internetInterface=\"\"/internetInterface=$internetInterface/" "$0"
+		else
+			printFail
+			echo "$error could not launch AP. Check <ap.log> for details"
+			exit 1
+		fi
+	}
+
+	configureApIpAddress(){
+		echo -n "Configuring AP's IP address <$apIpAddress>... "
+		ip add flush dev $apInterface
+		if ifconfig $apInterface $apIpAddress netmask $dhcpNetmask; then
+			printPass
+		else
+			printFail
+			echo "$error could not assign IP address to interface <$ipInterface>"
+			exit 1
+		fi
+	}
+
+	startDnsmasq(){
+		if ! processIsRunning "dnsmasq"; then
+			echo -n "Starting <dnsmasq> service for DHCP and DNS hosting... "
+			if systemctl start dnsmasq; then
+				printPass
+			else
+				printFail
+				echo "error could not start <dnsmasq> service"
+				exit 1
+			fi
+		else
+			echo "$warning <dnsmasq> service already started"
+			echo -n "Restarting <dnsmasq> service for DHCP and DNS hosting... "
+			if systemctl restart dnsmasq; then
+				printPass
+			else
+				printFail
+				echo "$error could not restart <dnsmasq> service"
+				exit 1
+			fi
+		fi
+	}
+
 	########## INTERNET CONNECTIVITY SETUP ##########
 
 	if ! hostapdInstalled; then
@@ -384,59 +445,15 @@ main(){
 	
 	########## AP SETUP ##########
 
-	echo -n "Disallowing AP interface from being managed by <NetworkManager>... "
-	if disallowManagingInterface "$apInterface"; then
-		printPass
-	else
-		printFail
-		echo "$error could not prevent <NetworkManager> from managing <$apInterface>"
-		exit 1
-	fi
-	
-	echo -n "Launching AP... "
-	if hostapd -B ap.conf > ap.log; then  ############# here lies a bug
-		printPass
-		
-		# write the interfaces used to current file so tear down can be performed with -r flag
-		sed -i "s/apInterface=\"\"/apInterface=$apInterface/" "$0"
-		sed -i "s/internetInterface=\"\"/internetInterface=$internetInterface/" "$0"
-	else
-		printFail
-		echo "$error could not launch AP. Check <ap.log> for details"
-		exit 1
-	fi
-	
-	echo -n "Configuring AP's IP address <$apIpAddress>... "
-	ip add flush dev $apInterface
-	if ifconfig $apInterface $apIpAddress netmask $dhcpNetmask; then
-		printPass
-	else
-		printFail
-		echo "$error could not assign IP address to interface <$ipInterface>"
-		exit 1
-	fi
-	
-	if ! processIsRunning "dnsmasq"; then
-		echo -n "Starting <dnsmasq> service for DHCP and DNS hosting... "
-		if systemctl start dnsmasq; then
-			printPass
-		else
-			printFail
-			echo "error could not start <dnsmasq> service"
-			exit 1
-		fi
-	else
-		echo "$warning <dnsmasq> service already started"
-		echo -n "Restarting <dnsmasq> service for DHCP and DNS hosting... "
-		if systemctl restart dnsmasq; then
-			printPass
-		else
-			printFail
-			echo "$error could not restart <dnsmasq> service"
-			exit 1
-		fi
-	fi
-	
+	stopManagingApInterface
+
+	launchAp  ################### contains a bug! occassionally the AP will show as started,
+	# but is not visible to stations (even though the process is running successfully).
+	# this is likely due to some service trying to manage the interface (none should be,
+	# besides <hostapd>)
+
+	configureApIpAddress
+	startDnsmasq
 	printFinished
 }
 
@@ -471,8 +488,8 @@ removeAp(){
 	echo "Disabling routing..."
 	sysctl -q net.ipv4.conf.all.forwarding=0
 
-	# remove interface assignments so next run will be empty
-	# only removes the first instance (which is at the top) to avoid damaging script
+	# remove interface assignments so next run the variables will be empty
+	# only removes the first instance (which is at the top) to avoid damaging rest of script
 	# this method only works in GNU sed
 	sed -i "0,/apInterface=.*/s/apInterface=.*/apInterface=\"\"/" "$0"
 	sed -i "0,/internetInterface=.*/s/internetInterface=.*/internetInterface=\"\"/" "$0"
