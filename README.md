@@ -17,8 +17,8 @@
 	Routing is enabled during AP usage, as well as IP masquerading (NAT) using iptables. These are
 	both disabled again after the AP is taken down using the -r flag.
 	
-	Any settings changed from their defaults using flags (DHCP start/end address, lease time,
-	etc.) persist between script runs.
+	Any settings changed from their defaults using flags (DHCP start address: -s <IP-address>; DHCP
+	end address: -e <IP-address>; etc.) persist between script runs.
 	
 	[OPTIONS]
 	    [-h | --help]
