@@ -22,6 +22,8 @@ dhcpRangeEnd="10.0.0.20"
 dhcpNetmask="255.255.255.0"
 dhcpLeaseTime="12h"
 
+hostapdConfigName="hostapd.conf"
+
 ###############################
 ########## FUNCTIONS ##########
 ###############################
@@ -37,23 +39,29 @@ dhcpLeaseTime="12h"
 #
 
 printUsage(){
-	echo "Usage:    captureAP.sh [OPTIONS] <internet-interface> <AP-interface>"
+	echo "[USAGE]"
+	echo "    captureAP.sh [OPTIONS] <internet-interface> <AP-interface>"
 	echo ""
 	echo ""
-	echo "This script creates a local AP (access point) using hostapd and connects it to the internet"\
-		"via an existing network connection, either ethernet or Wi-Fi. The interfaces will be things"\
-		"such as found in the ifconfig command: wlan0, eth0, etc."
+	echo "[DESCRIPTION]"
+	echo ""
+	echo "This script creates a local Wi-Fi AP (access point) using hostapd and connects it to the"\
+		"internet via an existing network connection, confirmed working with either ethernet or"\
+		"Wi-Fi, but should be compatible with any network interface. The interfaces will be things such"\
+		"as found in the ifconfig command: wlan0, eth0, etc."
 	echo ""
 	echo "The interface used for the AP is disallowed from being managed by the NetworkManager service."\
-		"An AP configuration file and dnsmasq configuration file are always required for the AP."
+		"A hostapd configuration file (hostapd.conf) and dnsmasq configuration file (dnsmasq.conf) are"\
+		"always required for the AP. If the required AP and dnsmasq configuration files are missing they"\
+		"will be generated with default settings."
 	echo ""
-	echo "If the required AP and dnsmasq configuration files are missing they will be generated with"\
-		"default settings."
+	echo "Routing is enabled during AP usage, as well as IP masquerading (NAT) using iptables. These are"\
+		"both disabled again after the AP is taken down using the -r flag."
 	echo ""
-	echo "Any settings changed from their defaults using flags (DHCP start/end address, lease time,"\
-		"etc.) persist between script runs."
+	echo "Any settings changed from their defaults using flags (DHCP start address: -s <IP-address>; DHCP"\
+		"end address: -e <IP-address>; etc.) persist between script runs."
 	echo ""
-	echo "Options:"
+	echo "[OPTIONS]"
 	echo "    [-h | --help]"
 	echo "        Displays this help screen and exits."
 	echo ""
@@ -78,9 +86,9 @@ printUsage(){
 	echo "        Default: 12h"
 	echo ""
 	echo "    [-r | --remove-ap]"
-	echo "       Remove the AP if it is running and revert all settings back to normal."
+	echo "       Remove the AP if it is running, disable routing, and disable IP masquerading."
 	echo ""
-	echo "Examples:"
+	echo "[EXAMPLES]"
 	echo "    captureAP.sh wlan0 wlan1"
 	echo "    captureAP.sh eth0 wlan0"
 	echo "    captureAP.sh -e 10.0.0.50 wlan0 wlan1"
@@ -170,49 +178,49 @@ setDhcpLeaseTime(){
 }
 
 apConfigExists(){
-	[ -e "ap.conf" ] || return
-	grep -q "interface=wlan." ap.conf || return
-	grep -q "channel=." ap.conf || return
-	grep -q "ssid=." ap.conf || return
+	[ -e "hostapd.conf" ] || return
+	grep -q "interface=wlan." hostapd.conf || return
+	grep -q "channel=." hostapd.conf || return
+	grep -q "ssid=." hostapd.conf || return
 }
 
 makeApConfig(){
-	touch ap.conf
-	echo "########## GENERAL SETTINGS ##########" >> ap.conf
-	echo "" >> ap.conf
-	echo "# interface to use for the AP" >> ap.conf
-	echo "interface=$apInterface" >> ap.conf
-	echo "" >> ap.conf
-	echo "# simplified: g=2.4GHz, a=5GHz" >> ap.conf
-	echo "hw_mode=g" >> ap.conf
-	echo "channel=2" >> ap.conf
-	echo "" >> ap.conf
-	echo "# a limited version of QoS" >> ap.conf
-	echo "# apparently necessary for full speed on 802.11n/ac/ax connections" >> ap.conf
-	echo "wmm_enabled=1" >> ap.conf
-	echo "country_code=US" >> ap.conf
-	echo "" >> ap.conf
-	echo "# limit frequencies to those permitted by the country code" >> ap.conf
-	echo "#ieee80211d=1" >> ap.conf
-	echo "" >> ap.conf
-	echo "# 802.11n support" >> ap.conf
-	echo "ieee80211n=1" >> ap.conf
-	echo "" >> ap.conf
-	echo "# 802.11ac support" >> ap.conf
-	echo "ieee80211ac=1" >> ap.conf
-	echo "" >> ap.conf
-	echo "########## SSID SETTINGS ##########" >> ap.conf
-	echo "" >> ap.conf
-	echo "ssid=2.4GHz_Capture_Network" >> ap.conf
-	echo "" >> ap.conf
-	echo "# 1=WPA, 2=WEP, 3=both" >> ap.conf
-	echo "#auth_algs=1" >> ap.conf
-	echo "" >> ap.conf
-	echo "# WPA2 only" >> ap.conf
-	echo "#wpa=2" >> ap.conf
-	echo "#wpa_key_mgmt=WPA-PSK" >> ap.conf
-	echo "#rsn_pairwise=CCMP" >> ap.conf
-	echo "#wpa_passphrase=ChAnGeMe" >> ap.conf
+	touch hostapd.conf
+	echo "########## GENERAL SETTINGS ##########" >> hostapd.conf
+	echo "" >> hostapd.conf
+	echo "# interface to use for the AP" >> hostapd.conf
+	echo "interface=$apInterface" >> hostapd.conf
+	echo "" >> hostapd.conf
+	echo "# simplified: g=2.4GHz, a=5GHz" >> hostapd.conf
+	echo "hw_mode=g" >> hostapd.conf
+	echo "channel=2" >> hostapd.conf
+	echo "" >> hostapd.conf
+	echo "# a limited version of QoS" >> hostapd.conf
+	echo "# apparently necessary for full speed on 802.11n/ac/ax connections" >> hostapd.conf
+	echo "wmm_enabled=1" >> hostapd.conf
+	echo "country_code=US" >> hostapd.conf
+	echo "" >> hostapd.conf
+	echo "# limit frequencies to those permitted by the country code" >> hostapd.conf
+	echo "#ieee80211d=1" >> hostapd.conf
+	echo "" >> hostapd.conf
+	echo "# 802.11n support" >> hostapd.conf
+	echo "ieee80211n=1" >> hostapd.conf
+	echo "" >> hostapd.conf
+	echo "# 802.11ac support" >> hostapd.conf
+	echo "ieee80211ac=1" >> hostapd.conf
+	echo "" >> hostapd.conf
+	echo "########## SSID SETTINGS ##########" >> hostapd.conf
+	echo "" >> hostapd.conf
+	echo "ssid=2.4GHz_Capture_Network" >> hostapd.conf
+	echo "" >> hostapd.conf
+	echo "# 1=WPA, 2=WEP, 3=both" >> hostapd.conf
+	echo "#auth_algs=1" >> hostapd.conf
+	echo "" >> hostapd.conf
+	echo "# WPA2 only" >> hostapd.conf
+	echo "#wpa=2" >> hostapd.conf
+	echo "#wpa_key_mgmt=WPA-PSK" >> hostapd.conf
+	echo "#rsn_pairwise=CCMP" >> hostapd.conf
+	echo "#wpa_passphrase=ChAnGeMe" >> hostapd.conf
 }
 
 dnsmasqConfigExists(){
@@ -247,11 +255,11 @@ updateConfigs(){
 	sed -i "s/dhcp-option=3,.*/dhcp-option=3,$apIpAddress/" /etc/dnsmasq.conf
 	sed -i "s/dhcp-option=6,.*/dhcp-option=6,$apIpAddress/" /etc/dnsmasq.conf
 
-	# exit with error if ap.conf isn't found
-	[ ! -e ap.conf ] && echo "$error <ap.conf> could not be found for updating" && exit 1
+	# exit with error if hostapd.conf isn't found
+	[ ! -e hostapd.conf ] && echo "$error <hostapd.conf> could not be found for updating" && exit 1
 
 	# update ap config
-	sed -i "s/interface=.*/interface=$apInterface/" ap.conf
+	sed -i "s/interface=.*/interface=$apInterface/" hostapd.conf
 }
 
 validateConfigs(){
@@ -265,10 +273,10 @@ validateConfigs(){
 		printPass
 	fi
 
-	echo -n "Checking <ap.conf>... "
+	echo -n "Checking <hostapd.conf>... "
 	if ! apConfigExists; then
 		echo ""
-		echo "$warning Missing or misconfigured file: <ap.conf>"
+		echo "$warning Missing or misconfigured file: <hostapd.conf>"
 		echo "Creating file with default settings. Check for accuracy."
 		makeApConfig
 	else
@@ -338,6 +346,7 @@ main(){
 	# check that the <hostapd> command is installed and accessible
 	hostapdInstalled(){ command -v hostapd > /dev/null; }
 
+	# start forwarding packets not addressed to us (routing)
 	startRouting(){
 		echo -n "Enabling routing... "
 		#sysctl -n net.ipv4.conf.all.forwaring  # will return just the value (1 if already enabled)
@@ -350,6 +359,7 @@ main(){
 		fi
 	}
 
+	# start NAT functionality (IP masquerading) between AP and internet interfaces
 	startMasquerade(){
 		# check if iptables was previously configured with the other interface and remove if so
 		if masqueradeRuleExists $apInterface; then
@@ -385,17 +395,21 @@ main(){
 
 	launchAp(){
 		echo -n "Launching AP... "
-		if hostapd -B ap.conf > ap.log; then  ############# here lies a bug
+		if hostapd -B hostapd.conf > ap.log; then  ############# here lies a bug
 			printPass
-			
-			# write the interfaces used to current file so tear down can be performed with -r flag
-			sed -i "s/apInterface=\"\"/apInterface=$apInterface/" "$0"
-			sed -i "s/internetInterface=\"\"/internetInterface=$internetInterface/" "$0"
 		else
 			printFail
 			echo "$error could not launch AP. Check <ap.log> for details"
 			exit 1
 		fi
+	}
+
+	# write the interfaces that were used to file so tear down can be performed with -r flag.
+	# should update this so that these are output to a separate file to prevent
+	# potential problems
+	writeInterfacesToFile(){
+		sed -i "s/apInterface=\"\"/apInterface=$apInterface/" "$0"
+		sed -i "s/internetInterface=\"\"/internetInterface=$internetInterface/" "$0"
 	}
 
 	configureApIpAddress(){
@@ -449,9 +463,10 @@ main(){
 
 	launchAp  ################### contains a bug! occassionally the AP will show as started,
 	# but is not visible to stations (even though the process is running successfully).
-	# this is likely due to some service trying to manage the interface (none should be,
+	# this is likely due to some service trying to manage the interface (and none should be,
 	# besides <hostapd>)
 
+	writeInterfacesToFile
 	configureApIpAddress
 	startDnsmasq
 	printFinished
