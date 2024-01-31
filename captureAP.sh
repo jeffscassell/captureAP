@@ -303,6 +303,11 @@ readApVariablesFromDnsmasqConfig(){
 	apIpAddress=$(cat /etc/dnsmasq.conf | grep "dhcp-option=3" | sed "s/.*,//")
 }
 
+readApVariablesFromHostapdConfig(){
+	[ -e hostapd.conf ] || return
+
+}
+
 # $1=interface
 disallowManagingInterface(){ nmcli dev set $1 managed no; }
 allowManagingInterface(){ nmcli dev set $1 managed yes; }
@@ -329,15 +334,18 @@ main(){
 	#
 	
 	# the final message printed after finished running
+	##################### TODO update to include network name and channel
 	printFinished(){
 		echo "Finished."
 		echo ""
 		echo "NOTE: If the AP is not visible, run the script again. It's a known bug."
 		echo ""
 		echo "AP:"
+		#echo "       Network Name: $networkSsid"
+		#echo "    Network Channel: $networkChannel"
 		echo "         IP Address: $apIpAddress"
 		echo "            Netmask: $dhcpNetmask"
-		echo ""    
+		echo ""
 		echo "         DHCP Start: $dhcpRangeStart"
 		echo "           DHCP End: $dhcpRangeEnd"
 		echo "    DHCP Lease Time: $dhcpLeaseTime"
@@ -395,7 +403,7 @@ main(){
 
 	launchAp(){
 		echo -n "Launching AP... "
-		if hostapd -B hostapd.conf > ap.log; then  ############# here lies a bug
+		if hostapd -B hostapd.conf > ap.log; then  ############# TODO make a real running log
 			printPass
 		else
 			printFail

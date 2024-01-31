@@ -4,10 +4,10 @@
 
 	[DESCRIPTION]
 
-	This script creates a local Wi-Fi AP (access point) using hostapd and connects it to the
-	internet via an existing network connection, confirmed working with either ethernet or
+	This script requires an unused Wi-Fi network interface, and an internet-connected interface, to create a local Wi-Fi AP (access point) using hostapd, tunneling traffic to the
+	internet-connected interface. Confirmed working with either ethernet or
 	Wi-Fi, but should be compatible with any network interface. The interfaces will be things such
-	as found in the ifconfig command: wlan0, eth0, etc.
+	as found in the ifconfig or ip commands: wlan0, eth0, etc.
 	
 	The interface used for the AP is disallowed from being managed by the NetworkManager service.
 	A hostapd configuration file (hostapd.conf) and dnsmasq configuration file (dnsmasq.conf) are
@@ -45,7 +45,7 @@
 	        Default: 12h
 	
 	    [-r | --remove-ap]
-	       Remove the AP if it is running, disable routing, and disable IP masquerading..
+	       Remove the AP if it is running, disable routing, and disable IP masquerading.
 	
 	[EXAMPLES]
 	    captureAP.sh wlan0 wlan1
