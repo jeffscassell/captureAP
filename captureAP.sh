@@ -68,15 +68,15 @@ printUsage(){
 	echo "    [-h | --help]"
 	echo "        Displays this help screen and exits."
 	echo ""
-	echo "    [-a | --ap-address] <ip-address>"
+	echo "    [-a | --apaddress] <ip-address>"
 	echo "        Set the access point IP address."
 	echo "        Default: 10.0.0.1"
 	echo ""
-	echo "    [-s | --dhcp-start] <ip-address>"
+	echo "    [-s | --dhcpstart] <ip-address>"
 	echo "        Set the DHCP range start IP address."
 	echo "        Default: 10.0.0.10"
 	echo ""
-	echo "    [-e | --dhcp-end] <ip-address>"
+	echo "    [-e | --dhcpend] <ip-address>"
 	echo "        Set the DHCP range end IP address."
 	echo "        Default: 10.0.0.20"
 	echo ""
@@ -84,11 +84,11 @@ printUsage(){
 	echo "        Set the DHCP netmask."
 	echo "        Default: 255.255.255.0"
 	echo ""
-	echo "    [-l | --dhcp-lease] <lease-time>"
+	echo "    [-l | --dhcplease] <lease-time>"
 	echo "        Set the DHCP lease time."
 	echo "        Default: 12h"
 	echo ""
-	echo "    [-r | --remove-ap]"
+	echo "    [-r | --remove]"
 	echo "       Remove the AP if it is running, disable routing, and disable IP masquerading."
 	echo ""
 	echo "[EXAMPLES]"
@@ -560,15 +560,15 @@ while [ "$#" -gt 0 ]; do  # loop while the number of passed script arguments is 
 			printUsage
 			exit 1
 			;;
-		-s|--dhcp-start)
+		-s|--dhcpstart)
 			setIpAddress "dhcpRangeStart" "DHCP-range-start" "$2"
 			shift 2  # remove the first 2 arguments and loop again
 			;;
-		-e|--dhcp-end)
+		-e|--dhcpend)
 			setIpAddress "dhcpRangeEnd" "DHCP-range-end" "$2"
 			shift 2
 			;;
-		-a|--ap-address)
+		-a|--apaddress)
 			setIpAddress "apIpAddress" "AP-IP-address" "$2"
 			shift 2
 			;;
@@ -576,11 +576,11 @@ while [ "$#" -gt 0 ]; do  # loop while the number of passed script arguments is 
 			setIpAddress "dhcpNetmask" "DHCP-netmask" "$2"
 			shift 2
 			;;
-		-l|--dhcp-lease)
+		-l|--dhcplease)
 			setDhcpLeaseTime "$2"
 			shift 2
 			;;
-		-r|--remove-ap)
+		-r|--remove)
 			checkForRoot
 			removeAp
 			exit 0
