@@ -175,7 +175,7 @@ printFail(){ echo "<!>"; }
 # expects the variable value ($3) to be an IP address
 # needs an update for better sanitization
 # $1=variable-to-update, $2=message-to-report, $3=IP-address-variable-value
-setAddress(){
+setIpAddress(){
 	if [ -z "$3" ]; then  # 
 		printMissingValueFor "$2"
 		exit 1
@@ -561,19 +561,19 @@ while [ "$#" -gt 0 ]; do  # loop while the number of passed script arguments is 
 			exit 1
 			;;
 		-s|--dhcp-start)
-			setAddress "dhcpRangeStart" "DHCP-range-start" "$2"
+			setIpAddress "dhcpRangeStart" "DHCP-range-start" "$2"
 			shift 2  # remove the first 2 arguments and loop again
 			;;
 		-e|--dhcp-end)
-			setAddress "dhcpRangeEnd" "DHCP-range-end" "$2"
+			setIpAddress "dhcpRangeEnd" "DHCP-range-end" "$2"
 			shift 2
 			;;
 		-a|--ap-address)
-			setAddress "apIpAddress" "AP-IP-address" "$2"
+			setIpAddress "apIpAddress" "AP-IP-address" "$2"
 			shift 2
 			;;
 		-n|--netmask)
-			setAddress "dhcpNetmask" "DHCP-netmask" "$2"
+			setIpAddress "dhcpNetmask" "DHCP-netmask" "$2"
 			shift 2
 			;;
 		-l|--dhcp-lease)
