@@ -45,10 +45,13 @@ printUsage(){
 	echo ""
 	echo "[DESCRIPTION]"
 	echo ""
-	echo "This script creates a local Wi-Fi AP (access point) using hostapd and connects it to the"\
+	echo "This script creates a local Wi-Fi AP (access point) and connects it to the"\
 		"internet via an existing network connection, confirmed working with either ethernet or"\
 		"Wi-Fi, but should be compatible with any network interface. The interfaces will be things such"\
-		"as found in the ifconfig command: wlan0, eth0, etc."
+		"as found in the ifconfig command (depending on Linux distribution): wlan0, eth0, etc."
+	echo ""
+	echo "Depends on <iptables> for IP masquerading, <NetworkManager> for handling interfaces, <hostapd> for"\
+		"creating the AP, and <dnsmasq> for assigning IP addresses (DHCP)."
 	echo ""
 	echo "The interface used for the AP is disallowed from being managed by the NetworkManager service."\
 		"A hostapd configuration file (hostapd.conf) and dnsmasq configuration file (dnsmasq.conf) are"\
@@ -141,6 +144,26 @@ checkInterfaces(){
 	fi
 }
 
+checkDependencies(){
+	# check that the <hostapd> command is installed and accessible
+	hostapdInstalled(){ command -v hostapd > /dev/null; }
+	iptablesInstalled(){ command -v iptables > /dev/null; }
+	dnsmasqInstalled(){ command -v dnsmasq > /dev/null; }
+	printMissingDependency(){ echo "$error <$1> package missing."; }
+
+	if ! hostapdInstalled || ! iptablesInstalled || ! dnsmasqInstalled; then
+		if ! hostapdInstalled; then
+			printMissingDependency "hostapd"
+		elif ! iptablesInstalled; then
+			printMissingDependency "iptables"
+		elif ! dnsmasqInstalled; then
+			printMissingDependency "dnsmasq"
+		fi
+
+		exit 1
+	fi
+}
+
 # part of automated reporting for missing arguments when script is run
 printMissingValueFor(){ echo "$error No value supplied for: <$1>"; }
 printInvalidValueFor(){ echo "$error Invalid value supplied for <$1>: $2"; }
@@ -150,13 +173,14 @@ printFail(){ echo "<!>"; }
 
 # uses pass-by-reference (sort of) to update passed variables with passed values
 # expects the variable value ($3) to be an IP address
+# needs an update for better sanitization
 # $1=variable-to-update, $2=message-to-report, $3=IP-address-variable-value
 setAddress(){
-	if [ -z "$3" ]; then
+	if [ -z "$3" ]; then  # 
 		printMissingValueFor "$2"
 		exit 1
 	elif isIpAddress "$3"; then
-		eval "$1=$3"
+		eval "$1=$3"  # a dangerous command that should be sanitized carefully
 	else
 		printInvalidValueFor "$2" "$3"
 		exit 1
@@ -305,7 +329,9 @@ readApVariablesFromDnsmasqConfig(){
 
 readApVariablesFromHostapdConfig(){
 	[ -e hostapd.conf ] || return
-
+	# finish this function
+	# will read the AP's name and, if it turns out we need it in the future, the wifi channel used
+	# but i'm not so sure that's going to be necessary
 }
 
 # $1=interface
@@ -338,7 +364,9 @@ main(){
 	printFinished(){
 		echo "Finished."
 		echo ""
-		echo "NOTE: If the AP is not visible, run the script again. It's a known bug."
+		echo "########"
+		echo "# NOTE # If the AP is not visible, run the script again. It's a known bug."
+		echo "########"
 		echo ""
 		echo "AP:"
 		#echo "       Network Name: $networkSsid"
@@ -350,9 +378,6 @@ main(){
 		echo "           DHCP End: $dhcpRangeEnd"
 		echo "    DHCP Lease Time: $dhcpLeaseTime"
 	}
-
-	# check that the <hostapd> command is installed and accessible
-	hostapdInstalled(){ command -v hostapd > /dev/null; }
 
 	# start forwarding packets not addressed to us (routing)
 	startRouting(){
@@ -412,9 +437,9 @@ main(){
 		fi
 	}
 
-	# write the interfaces that were used to file so tear down can be performed with -r flag.
+	# write down the interfaces that were used to a file so tear down can be performed with -r flag.
 	# should update this so that these are output to a separate file to prevent
-	# potential problems
+	# potential problems with overwrites.
 	writeInterfacesToFile(){
 		sed -i "s/apInterface=\"\"/apInterface=$apInterface/" "$0"
 		sed -i "s/internetInterface=\"\"/internetInterface=$internetInterface/" "$0"
@@ -456,11 +481,6 @@ main(){
 	}
 
 	########## INTERNET CONNECTIVITY SETUP ##########
-
-	if ! hostapdInstalled; then
-		echo "$error <hostapd> command/package missing. Exiting."
-		exit 1
-	fi
 	
 	startRouting
 	startMasquerade
@@ -484,7 +504,7 @@ removeAp(){
 	# stop running if either interface variables are empty (assigned values if the AP was launched)
 	if [ -z "$apInterface" ] || [ -z "$internetInterface" ]; then
 		echo "$error Script was not run previously to create an AP. AP interface and/or internet"\
-			"interface cannot be restored because it is unknown"
+			"interface cannot be restored because it is unknown."
 		exit 1
 	fi
 
@@ -530,6 +550,7 @@ if [ "$#" = 0 ]; then
 	exit 1
 fi
 
+checkDependencies
 readApVariablesFromDnsmasqConfig
 
 # parse inputs
