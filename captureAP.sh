@@ -533,7 +533,7 @@ fi
 readApVariablesFromDnsmasqConfig
 
 # parse inputs
-while [ "$#" -gt 0 ]; do  # loop while the number of passed arguments is greater than 0
+while [ "$#" -gt 0 ]; do  # loop while the number of passed script arguments is greater than 0
 	case "$1" in
 		-h|--help)
 			printUsage
