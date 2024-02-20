@@ -4,10 +4,13 @@
 
 	[DESCRIPTION]
 
-	This script requires an unused Wi-Fi network interface, and an internet-connected interface, to create a local Wi-Fi AP (access point) using hostapd, tunneling traffic to the
-	internet-connected interface. Confirmed working with either ethernet or
-	Wi-Fi, but should be compatible with any network interface. The interfaces will be things such
-	as found in the ifconfig or ip commands: wlan0, eth0, etc.
+	This script creates a local Wi-Fi AP (access point) and connects it to the
+	internet via an existing network connection. Confirmed working with either ethernet or	Wi-Fi,
+	but should be compatible with any network interface. The interfaces will be things such as
+	found in the ifconfig or ip commands: wlan0, eth0, etc.
+
+	Depends on <iptables> for IP masquerading, <NetworkManager> for handling interfaces, <hostapd> for
+	creating the AP, and <dnsmasq> for assigning IP addresses (DHCP).
 	
 	The interface used for the AP is disallowed from being managed by the NetworkManager service.
 	A hostapd configuration file (hostapd.conf) and dnsmasq configuration file (dnsmasq.conf) are
@@ -24,15 +27,15 @@
 	    [-h | --help]
 	        Displays this help screen and exits.
 	
-	    [-a | --ap-address] <ip-address>
+	    [-a | --apaddress] <ip-address>
 	        Set the access point IP address.
 	        Default: 10.0.0.1
 	
-	    [-s | --dhcp-start] <ip-address>
+	    [-s | --dhcpstart] <ip-address>
 	        Set the DHCP range start IP address.
 	        Default: 10.0.0.10
 	
-	    [-e | --dhcp-end] <ip-address>
+	    [-e | --dhcpend] <ip-address>
 	        Set the DHCP range end IP address.
 	        Default: 10.0.0.20
 	
@@ -40,11 +43,11 @@
 	        Set the DHCP netmask.
 	        Default: 255.255.255.0
 	
-	    [-l | --dhcp-lease] <lease-time>
+	    [-l | --dhcplease] <lease-time>
 	        Set the DHCP lease time.
 	        Default: 12h
 	
-	    [-r | --remove-ap]
+	    [-r | --removeap]
 	       Remove the AP if it is running, disable routing, and disable IP masquerading.
 	
 	[EXAMPLES]
