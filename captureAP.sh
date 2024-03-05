@@ -237,6 +237,8 @@ makeApConfig(){
 	echo "" >> hostapd.conf
 	echo "ssid=2.4GHz_Capture_Network" >> hostapd.conf
 	echo "" >> hostapd.conf
+	echo "# UNCOMMENT BELOW THIS LINE FOR WPA2 ENCRYPTION" >> hostapd.conf
+	echo "" >> hostapd.conf
 	echo "# 1=WPA, 2=WEP, 3=both" >> hostapd.conf
 	echo "#auth_algs=1" >> hostapd.conf
 	echo "" >> hostapd.conf
