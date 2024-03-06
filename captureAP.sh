@@ -160,6 +160,7 @@ checkDependencies(){
 			printMissingDependency "dnsmasq"
 		fi
 
+		echo "Some dependencies require root privilege. Ensure this is not the real error."
 		exit 1
 	fi
 }
@@ -352,6 +353,7 @@ killRunningAp(){
 checkForRoot(){
 	if [ ! $(id -u) = 0 ]; then
 		echo "$error Script must be run with super user privileges (root). Exiting."
+		printUsage
 		exit 1
 	fi
 }
@@ -366,9 +368,11 @@ main(){
 	printFinished(){
 		echo "Finished."
 		echo ""
-		echo "########"
-		echo "# NOTE # If the AP is not visible, run the script again. It's a known bug."
-		echo "########"
+		echo "############"
+		echo "# ! NOTE ! #"
+		echo "############"
+		echo "If the AP is not visible, run the script again. It's a known bug."
+		echo "To remove the AP, run the script again with the -r or --remove arguments."
 		echo ""
 		echo "AP:"
 		#echo "       Network Name: $networkSsid"
@@ -552,6 +556,7 @@ if [ "$#" = 0 ]; then
 	exit 1
 fi
 
+checkForRoot
 checkDependencies
 readApVariablesFromDnsmasqConfig
 
@@ -583,13 +588,10 @@ while [ "$#" -gt 0 ]; do  # loop while the number of passed script arguments is 
 			shift 2
 			;;
 		-r|--remove)
-			checkForRoot
 			removeAp
 			exit 0
 			;;
 		*)
-			checkForRoot
-
 			# if $3 is non-zero (3rd arg is present), too many args
 			[ -n "$3" ] && printUsage && exit 1
 
