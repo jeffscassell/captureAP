@@ -16,6 +16,7 @@ internetInterface=""
 apInterface=""
 
 apIpAddress="10.0.0.1"
+networkSsid="2.4GHz_Capture_Network"
 
 dhcpRangeStart="10.0.0.10"
 dhcpRangeEnd="10.0.0.20"
@@ -145,22 +146,18 @@ checkInterfaces(){
 }
 
 checkDependencies(){
-	# check that the <hostapd> command is installed and accessible
-	hostapdInstalled(){ command -v hostapd > /dev/null; }
-	iptablesInstalled(){ command -v iptables > /dev/null; }
-	dnsmasqInstalled(){ command -v dnsmasq > /dev/null; }
+	isInstalled(){ dpkg -s "$1" 2> /dev/null | grep -q "install ok installed"; }
 	printMissingDependency(){ echo "$error <$1> package missing."; }
+	missingDependency=0
 
-	if ! hostapdInstalled || ! iptablesInstalled || ! dnsmasqInstalled; then
-		if ! hostapdInstalled; then
-			printMissingDependency "hostapd"
-		elif ! iptablesInstalled; then
-			printMissingDependency "iptables"
-		elif ! dnsmasqInstalled; then
-			printMissingDependency "dnsmasq"
+	for dependency in hostapd iptables dnsmasq; do
+		if ! isInstalled "$dependency"; then
+			missingDependency=1
+			printMissingDependency "$dependency"
 		fi
+	done
 
-		echo "Some dependencies require root privilege. Ensure this is not the real error."
+	if [ "$missingDependency" = 1 ]; then
 		exit 1
 	fi
 }
@@ -202,14 +199,14 @@ setDhcpLeaseTime(){
 	fi
 }
 
-apConfigExists(){
+apConfigIsValid(){
 	[ -e "hostapd.conf" ] || return
 	grep -q "interface=wlan." hostapd.conf || return
 	grep -q "channel=." hostapd.conf || return
 	grep -q "ssid=." hostapd.conf || return
 }
 
-makeApConfig(){
+makeHostapdConfig(){
 	touch hostapd.conf
 	echo "########## GENERAL SETTINGS ##########" >> hostapd.conf
 	echo "" >> hostapd.conf
@@ -236,21 +233,21 @@ makeApConfig(){
 	echo "" >> hostapd.conf
 	echo "########## SSID SETTINGS ##########" >> hostapd.conf
 	echo "" >> hostapd.conf
-	echo "ssid=2.4GHz_Capture_Network" >> hostapd.conf
+	echo "ssid=$networkSsid" >> hostapd.conf
 	echo "" >> hostapd.conf
-	echo "# UNCOMMENT BELOW THIS LINE FOR WPA2 ENCRYPTION" >> hostapd.conf
+	echo "# COMMENT THE BELOW LINES TO DISABLE WPA2 ENCRYPTION" >> hostapd.conf
 	echo "" >> hostapd.conf
 	echo "# 1=WPA, 2=WEP, 3=both" >> hostapd.conf
-	echo "#auth_algs=1" >> hostapd.conf
+	echo "auth_algs=1" >> hostapd.conf
 	echo "" >> hostapd.conf
 	echo "# WPA2 only" >> hostapd.conf
-	echo "#wpa=2" >> hostapd.conf
-	echo "#wpa_key_mgmt=WPA-PSK" >> hostapd.conf
-	echo "#rsn_pairwise=CCMP" >> hostapd.conf
-	echo "#wpa_passphrase=ChAnGeMe" >> hostapd.conf
+	echo "wpa=2" >> hostapd.conf
+	echo "wpa_key_mgmt=WPA-PSK" >> hostapd.conf
+	echo "rsn_pairwise=CCMP" >> hostapd.conf
+	echo "wpa_passphrase=changeme" >> hostapd.conf
 }
 
-dnsmasqConfigExists(){
+dnsmasqConfigIsValid(){
 	[ -e /etc/dnsmasq.conf ] || return
 	grep -q "interface=wlan." /etc/dnsmasq.conf || return
 	grep -q "dhcp-range=.." /etc/dnsmasq.conf || return
@@ -272,7 +269,7 @@ makeDnsmasqConfig(){
 }
 
 updateConfigs(){
-	# if dnsmasq.conf file doesn't exit, exit with error
+	# if dnsmasq.conf file doesn't exist, exit with error
 	[ ! -e /etc/dnsmasq.conf ] && echo "$error <dnsmasq.conf> could not be found for updating" && exit 1
 	
 	# update dnsmasq config
@@ -291,21 +288,21 @@ updateConfigs(){
 
 validateConfigs(){
 	echo -n "Checking /etc/<dnsmasq.conf>... "
-	if ! dnsmasqConfigExists; then
+	if ! dnsmasqConfigIsValid; then
 		echo ""
 		echo "$warning Missing or misconfigured file: /etc/<dnsmasq.conf>"
-		echo "Creating file with default settings. Check for accuracy."
+		echo "$warning Creating file with default settings. Check for accuracy."
 		makeDnsmasqConfig
 	else
 		printPass
 	fi
 
 	echo -n "Checking <hostapd.conf>... "
-	if ! apConfigExists; then
+	if ! apConfigIsValid; then
 		echo ""
 		echo "$warning Missing or misconfigured file: <hostapd.conf>"
 		echo "Creating file with default settings. Check for accuracy."
-		makeApConfig
+		makeHostapdConfig
 	else
 		printPass
 	fi
@@ -316,10 +313,12 @@ validateConfigs(){
 readApVariablesFromDnsmasqConfig(){
 	[ -e /etc/dnsmasq.conf ] || return  # only execute the rest if the file exists
 
-	# extract the dhcp-range variable's value from dnsmasq.conf
+	# extract the dhcp-range variable from dnsmasq.conf
+	# will be in the format:
+	# dhcp-range=10.0.0.10,10.0.0.20,255.255.255.0,12h
 	existingRangeValues=$(cat /etc/dnsmasq.conf | grep "dhcp-range=" | sed "s/.*=//")
 
-	# parse the extracted value using sed capture groups
+	# parse the extracted variable using sed capture groups
 	dhcpRangeStart=$(echo $existingRangeValues | sed -E "s/(.*),(.*),(.*),(.*)/\1/")
 	dhcpRangeEnd=$(echo $existingRangeValues | sed -E  "s/(.*),(.*),(.*),(.*)/\2/")
 	dhcpNetmask=$(echo $existingRangeValues | sed -E  "s/(.*),(.*),(.*),(.*)/\3/")
@@ -332,9 +331,7 @@ readApVariablesFromDnsmasqConfig(){
 
 readApVariablesFromHostapdConfig(){
 	[ -e hostapd.conf ] || return
-	# finish this function
-	# will read the AP's name and, if it turns out we need it in the future, the wifi channel used
-	# but i'm not so sure that's going to be necessary
+	networkSsid=$(cat hostapd.conf | grep "ssid=" | sed "s/ssid=//")
 }
 
 # $1=interface
@@ -371,11 +368,12 @@ main(){
 		echo "############"
 		echo "# ! NOTE ! #"
 		echo "############"
+		echo ""
 		echo "If the AP is not visible, run the script again. It's a known bug."
-		echo "To remove the AP, run the script again with the -r or --remove arguments."
+		echo "To remove the AP, run the script again with the -r or --remove argument."
 		echo ""
 		echo "AP:"
-		#echo "       Network Name: $networkSsid"
+		echo "       Network Name: $networkSsid"
 		#echo "    Network Channel: $networkChannel"
 		echo "         IP Address: $apIpAddress"
 		echo "            Netmask: $dhcpNetmask"
@@ -434,11 +432,13 @@ main(){
 
 	launchAp(){
 		echo -n "Launching AP... "
-		if hostapd -B hostapd.conf > ap.log; then  ############# TODO make a real running log
+		# TODO restructure so that this is the last function to call? then on CTRL-C,
+		# perform tear-down automatically?
+		if hostapd -B hostapd.conf > /dev/null; then  # TODO make a real running log
 			printPass
 		else
 			printFail
-			echo "$error could not launch AP. Check <ap.log> for details"
+			echo "$error could not launch AP."
 			exit 1
 		fi
 	}
@@ -559,6 +559,7 @@ fi
 checkForRoot
 checkDependencies
 readApVariablesFromDnsmasqConfig
+readApVariablesFromHostapdConfig
 
 # parse inputs
 while [ "$#" -gt 0 ]; do  # loop while the number of passed script arguments is greater than 0
