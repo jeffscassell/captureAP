@@ -1,7 +1,7 @@
 #!/bin/bash
 # created by Jeff Cassell <jeffrey.cassell@utsa.edu> or <jeffscassell@protonmail.com>
 # SEP2023
-# v1.0
+# v1.1
 
 
 
@@ -23,7 +23,9 @@ dhcpRangeEnd="10.0.0.20"
 dhcpNetmask="255.255.255.0"
 dhcpLeaseTime="12h"
 
-hostapdConfigName="hostapd.conf"
+scriptDirectory=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+hostapdConfigName="$scriptDirectory/hostapd.conf"
+dnsmasqConfigName="$scriptDirectory/dnsmasq.conf"
 
 ###############################
 ########## FUNCTIONS ##########
@@ -99,6 +101,13 @@ printUsage(){
 	echo "    captureAP.sh -r"
 }
 
+printPass(){ echo "[OK]"; }
+printFail(){ echo "<!>"; }
+
+# part of automated reporting for missing arguments when script is run
+printMissingValueFor(){ echo "$error No value supplied for: <$1>"; }
+printInvalidValueFor(){ echo "$error Invalid value supplied for <$1>: $2"; }
+
 # uses regex to determine if a passed argument is a valid IP address
 # $1=ip-address
 isIpAddress(){
@@ -107,7 +116,7 @@ echo "$1" | grep -q -E "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2
 
 # tries to ping google once to see if internet is working
 # redirects stdout to /dev/null, and stderr to stdout
-# the normal stdout/stderr &> redirect doesn't work as normal within scripts for some reason
+# the normal stdout/stderr &> redirect doesn't work as normal within scripts for some reason (sometimes)
 internetIsUp(){ ping -c 1 google.com > /dev/null 2>&1; }
 
 # $1=process-to-find
@@ -122,7 +131,7 @@ appendMasqueradeRule(){ iptables -t nat -A POSTROUTING -o $1 -j MASQUERADE > /de
 isValidInterface(){ ifconfig $1 > /dev/null 2>&1; }
 isWirelessInterface(){ iwconfig $1 > /dev/null 2>&1; }
 
-checkInterfaces(){
+validateInterfaces(){
 	internetInterface=$1
 	apInterface=$2
 
@@ -162,13 +171,6 @@ checkDependencies(){
 	fi
 }
 
-# part of automated reporting for missing arguments when script is run
-printMissingValueFor(){ echo "$error No value supplied for: <$1>"; }
-printInvalidValueFor(){ echo "$error Invalid value supplied for <$1>: $2"; }
-
-printPass(){ echo "[OK]"; }
-printFail(){ echo "<!>"; }
-
 # uses pass-by-reference (sort of) to update passed variables with passed values
 # expects the variable value ($3) to be an IP address
 # needs an update for better sanitization
@@ -199,91 +201,90 @@ setDhcpLeaseTime(){
 	fi
 }
 
-apConfigIsValid(){
-	[ -e "hostapd.conf" ] || return
-	grep -q "interface=wlan." hostapd.conf || return
-	grep -q "channel=." hostapd.conf || return
-	grep -q "ssid=." hostapd.conf || return
+hostapdConfigIsValid(){
+	[ -e "$hostapdConfigName" ] || return
+	grep -q "interface=wlan." $hostapdConfigName || return
+	grep -q "channel=." $hostapdConfigName || return
+	grep -q "ssid=." $hostapdConfigName || return
 }
 
 makeHostapdConfig(){
-	touch hostapd.conf
-	echo "########## GENERAL SETTINGS ##########" >> hostapd.conf
-	echo "" >> hostapd.conf
-	echo "# interface to use for the AP" >> hostapd.conf
-	echo "interface=$apInterface" >> hostapd.conf
-	echo "" >> hostapd.conf
-	echo "# simplified: g=2.4GHz, a=5GHz" >> hostapd.conf
-	echo "hw_mode=g" >> hostapd.conf
-	echo "channel=2" >> hostapd.conf
-	echo "" >> hostapd.conf
-	echo "# a limited version of QoS" >> hostapd.conf
-	echo "# apparently necessary for full speed on 802.11n/ac/ax connections" >> hostapd.conf
-	echo "wmm_enabled=1" >> hostapd.conf
-	echo "country_code=US" >> hostapd.conf
-	echo "" >> hostapd.conf
-	echo "# limit frequencies to those permitted by the country code" >> hostapd.conf
-	echo "#ieee80211d=1" >> hostapd.conf
-	echo "" >> hostapd.conf
-	echo "# 802.11n support" >> hostapd.conf
-	echo "ieee80211n=1" >> hostapd.conf
-	echo "" >> hostapd.conf
-	echo "# 802.11ac support" >> hostapd.conf
-	echo "ieee80211ac=1" >> hostapd.conf
-	echo "" >> hostapd.conf
-	echo "########## SSID SETTINGS ##########" >> hostapd.conf
-	echo "" >> hostapd.conf
-	echo "ssid=$networkSsid" >> hostapd.conf
-	echo "" >> hostapd.conf
-	echo "# COMMENT THE BELOW LINES TO DISABLE WPA2 ENCRYPTION" >> hostapd.conf
-	echo "" >> hostapd.conf
-	echo "# 1=WPA, 2=WEP, 3=both" >> hostapd.conf
-	echo "auth_algs=1" >> hostapd.conf
-	echo "" >> hostapd.conf
-	echo "# WPA2 only" >> hostapd.conf
-	echo "wpa=2" >> hostapd.conf
-	echo "wpa_key_mgmt=WPA-PSK" >> hostapd.conf
-	echo "rsn_pairwise=CCMP" >> hostapd.conf
-	echo "wpa_passphrase=changeme" >> hostapd.conf
+	touch $hostapdConfigName
+	echo "########## GENERAL SETTINGS ##########" >> $hostapdConfigName
+	echo "" >> $hostapdConfigName
+	echo "# interface to use for the AP" >> $hostapdConfigName
+	echo "interface=$apInterface" >> $hostapdConfigName
+	echo "" >> $hostapdConfigName
+	echo "# simplified: g=2.4GHz, a=5GHz" >> $hostapdConfigName
+	echo "hw_mode=g" >> $hostapdConfigName
+	echo "channel=2" >> $hostapdConfigName
+	echo "" >> $hostapdConfigName
+	echo "# a limited version of QoS" >> $hostapdConfigName
+	echo "# apparently necessary for full speed on 802.11n/ac/ax connections" >> $hostapdConfigName
+	echo "wmm_enabled=1" >> $hostapdConfigName
+	echo "country_code=US" >> $hostapdConfigName
+	echo "" >> $hostapdConfigName
+	echo "# limit frequencies to those permitted by the country code" >> $hostapdConfigName
+	echo "#ieee80211d=1" >> $hostapdConfigName
+	echo "" >> $hostapdConfigName
+	echo "# 802.11n support" >> $hostapdConfigName
+	echo "ieee80211n=1" >> $hostapdConfigName
+	echo "" >> $hostapdConfigName
+	echo "# 802.11ac support" >> $hostapdConfigName
+	echo "ieee80211ac=1" >> $hostapdConfigName
+	echo "" >> $hostapdConfigName
+	echo "########## SSID SETTINGS ##########" >> $hostapdConfigName
+	echo "" >> $hostapdConfigName
+	echo "ssid=$networkSsid" >> $hostapdConfigName
+	echo "" >> $hostapdConfigName
+	echo "# COMMENT THE BELOW LINES TO DISABLE WPA2 ENCRYPTION" >> $hostapdConfigName
+	echo "" >> $hostapdConfigName
+	echo "# 1=WPA, 2=WEP, 3=both" >> $hostapdConfigName
+	echo "auth_algs=1" >> $hostapdConfigName
+	echo "" >> $hostapdConfigName
+	echo "# WPA2 only" >> $hostapdConfigName
+	echo "wpa=2" >> $hostapdConfigName
+	echo "wpa_key_mgmt=WPA-PSK" >> $hostapdConfigName
+	echo "rsn_pairwise=CCMP" >> $hostapdConfigName
+	echo "wpa_passphrase=changeme" >> $hostapdConfigName
 }
 
 dnsmasqConfigIsValid(){
-	[ -e /etc/dnsmasq.conf ] || return
-	grep -q "interface=wlan." /etc/dnsmasq.conf || return
-	grep -q "dhcp-range=.." /etc/dnsmasq.conf || return
-	grep -q "dhcp-option=3,." /etc/dnsmasq.conf || return
-	grep -q "dhcp-option=6,." /etc/dnsmasq.conf || return
+	[ -e "$dnsmasqConfigName" ] || return
+	grep -q "interface=wlan." $dnsmasqConfigName || return
+	grep -q "dhcp-range=.." $dnsmasqConfigName || return
+	grep -q "dhcp-option=3,." $dnsmasqConfigName || return
+	grep -q "dhcp-option=6,." $dnsmasqConfigName || return
 }
 
 makeDnsmasqConfig(){
-	touch dnsmasq.conf
-	echo "# listening interface" >> dnsmasq.conf
-	echo "interface=$apInterface" >> dnsmasq.conf
-	echo "" >> dnsmasq.conf
-	echo "dhcp-range=$dhcpRangeStart,$dhcpRangeEnd,$dhcpNetmask,$dhcpLeaseTime" >> dnsmasq.conf
-	echo "# client default gateway" >> dnsmasq.conf
-	echo "dhcp-option=3,$apIpAddress" >> dnsmasq.conf
-	echo "# client DNS server" >> dnsmasq.conf
-	echo "dhcp-option=6,$apIpAddress" >> dnsmasq.conf
-	mv dnsmasq.conf /etc/
+	touch $dnsmasqConfigName
+	echo "# listening interface" >> $dnsmasqConfigName
+	echo "interface=$apInterface" >> $dnsmasqConfigName
+	echo "" >> $dnsmasqConfigName
+	echo "dhcp-range=$dhcpRangeStart,$dhcpRangeEnd,$dhcpNetmask,$dhcpLeaseTime" >> $dnsmasqConfigName
+	echo "# client default gateway" >> $dnsmasqConfigName
+	echo "dhcp-option=3,$apIpAddress" >> $dnsmasqConfigName
+	echo "# client DNS server" >> $dnsmasqConfigName
+	echo "dhcp-option=6,$apIpAddress" >> $dnsmasqConfigName
 }
 
 updateConfigs(){
 	# if dnsmasq.conf file doesn't exist, exit with error
-	[ ! -e /etc/dnsmasq.conf ] && echo "$error <dnsmasq.conf> could not be found for updating" && exit 1
+	[ ! -e "$dnsmasqConfigName" ] && echo "$error <dnsmasq.conf> could not be found for updating" && exit 1
 	
 	# update dnsmasq config
-	sed -i "s/interface=.*/interface=$apInterface/" /etc/dnsmasq.conf
+	sed -i "s/interface=.*/interface=$apInterface/" $dnsmasqConfigName
 	sed -i "s/dhcp-range=.*/dhcp-range=$dhcpRangeStart,$dhcpRangeEnd,$dhcpNetmask,$dhcpLeaseTime/"\
-		/etc/dnsmasq.conf
-	sed -i "s/dhcp-option=3,.*/dhcp-option=3,$apIpAddress/" /etc/dnsmasq.conf
-	sed -i "s/dhcp-option=6,.*/dhcp-option=6,$apIpAddress/" /etc/dnsmasq.conf
+		$dnsmasqConfigName
+	sed -i "s/dhcp-option=3,.*/dhcp-option=3,$apIpAddress/" $dnsmasqConfigName
+	sed -i "s/dhcp-option=6,.*/dhcp-option=6,$apIpAddress/" $dnsmasqConfigName
 
 	# exit with error if hostapd.conf isn't found
-	[ ! -e hostapd.conf ] && echo "$error <hostapd.conf> could not be found for updating" && exit 1
+	[ ! -e "$hostapdConfigName" ] && echo "$error <hostapd.conf> could not be found for updating" && exit 1
 
 	# update ap config
-	sed -i "s/interface=.*/interface=$apInterface/" hostapd.conf
+	sed -i "s/interface=.*/interface=$apInterface/" $hostapdConfigName
 }
 
 validateConfigs(){
@@ -298,7 +299,7 @@ validateConfigs(){
 	fi
 
 	echo -n "Checking <hostapd.conf>... "
-	if ! apConfigIsValid; then
+	if ! hostapdConfigIsValid; then
 		echo ""
 		echo "$warning Missing or misconfigured file: <hostapd.conf>"
 		echo "Creating file with default settings. Check for accuracy."
@@ -311,12 +312,12 @@ validateConfigs(){
 # ensures persistent settings between runs. e.g., if the AP was launched with the DHCP range ending
 # at 10.0.0.50, it uses those settings again
 readApVariablesFromDnsmasqConfig(){
-	[ -e /etc/dnsmasq.conf ] || return  # only execute the rest if the file exists
+	[ -e "$dnsmasqConfigName" ] || return  # only execute the rest if the file exists
 
 	# extract the dhcp-range variable from dnsmasq.conf
 	# will be in the format:
 	# dhcp-range=10.0.0.10,10.0.0.20,255.255.255.0,12h
-	existingRangeValues=$(cat /etc/dnsmasq.conf | grep "dhcp-range=" | sed "s/.*=//")
+	existingRangeValues=$(cat $dnsmasqConfigName | grep "dhcp-range=" | sed "s/.*=//")
 
 	# parse the extracted variable using sed capture groups
 	dhcpRangeStart=$(echo $existingRangeValues | sed -E "s/(.*),(.*),(.*),(.*)/\1/")
@@ -326,12 +327,12 @@ readApVariablesFromDnsmasqConfig(){
 
 	# extract the AP's IP address from the first dhcp-option variable's value
 	# (could also do it with the second option variable, the first was chosen arbitrarily)
-	apIpAddress=$(cat /etc/dnsmasq.conf | grep "dhcp-option=3" | sed "s/.*,//")
+	apIpAddress=$(cat $dnsmasqConfigName | grep "dhcp-option=3" | sed "s/.*,//")
 }
 
 readApVariablesFromHostapdConfig(){
-	[ -e hostapd.conf ] || return
-	networkSsid=$(cat hostapd.conf | grep "ssid=" | sed "s/ssid=//")
+	[ -e "$hostapdConfigName" ] || return
+	networkSsid=$(cat $hostapdConfigName | grep "ssid=" | sed "s/ssid=//")
 }
 
 # $1=interface
@@ -360,29 +361,6 @@ main(){
 	# these functions are only called from within main()
 	#
 	
-	# the final message printed after finished running
-	##################### TODO update to include network name and channel
-	printFinished(){
-		echo "Finished."
-		echo ""
-		echo "############"
-		echo "# ! NOTE ! #"
-		echo "############"
-		echo ""
-		echo "If the AP is not visible, run the script again. It's a known bug."
-		echo "To remove the AP, run the script again with the -r or --remove argument."
-		echo ""
-		echo "AP:"
-		echo "       Network Name: $networkSsid"
-		#echo "    Network Channel: $networkChannel"
-		echo "         IP Address: $apIpAddress"
-		echo "            Netmask: $dhcpNetmask"
-		echo ""
-		echo "         DHCP Start: $dhcpRangeStart"
-		echo "           DHCP End: $dhcpRangeEnd"
-		echo "    DHCP Lease Time: $dhcpLeaseTime"
-	}
-
 	# start forwarding packets not addressed to us (routing)
 	startRouting(){
 		echo -n "Enabling routing... "
@@ -434,7 +412,7 @@ main(){
 		echo -n "Launching AP... "
 		# TODO restructure so that this is the last function to call? then on CTRL-C,
 		# perform tear-down automatically?
-		if hostapd -B hostapd.conf > /dev/null; then  # TODO make a real running log
+		if hostapd -B $hostapdConfigName > /dev/null; then  # TODO make a real running log
 			printPass
 		else
 			printFail
@@ -458,7 +436,7 @@ main(){
 			printPass
 		else
 			printFail
-			echo "$error could not assign IP address to interface <$ipInterface>"
+			echo "$error could not assign IP address to interface <$apInterface>"
 			exit 1
 		fi
 	}
@@ -466,17 +444,19 @@ main(){
 	startDnsmasq(){
 		if ! processIsRunning "dnsmasq"; then
 			echo -n "Starting <dnsmasq> service for DHCP and DNS hosting... "
-			if systemctl start dnsmasq; then
+			if dnsmasq --conf-file=$dnsmasqConfigName --interface=$apInterface; then
 				printPass
 			else
 				printFail
-				echo "error could not start <dnsmasq> service"
+				echo "$error could not start <dnsmasq> service"
 				exit 1
 			fi
 		else
 			echo "$warning <dnsmasq> service already started"
-			echo -n "Restarting <dnsmasq> service for DHCP and DNS hosting... "
-			if systemctl restart dnsmasq; then
+			echo -n "$warning Restarting <dnsmasq> service for DHCP and DNS hosting... "
+			systemctl stop dnsmasq
+			pkill dnsmasq
+			if dnsmasq --conf-file=$dnsmasqConfigName --interface=$apInterface; then
 				printPass
 			else
 				printFail
@@ -484,6 +464,27 @@ main(){
 				exit 1
 			fi
 		fi
+	}
+
+	printFinished(){
+		echo "Finished."
+		echo ""
+		echo "############"
+		echo "# ! NOTE ! #"
+		echo "############"
+		echo ""
+		echo "If the AP is not visible, run the script again. It's a known bug."
+		echo "To remove the AP, run the script again with the -r or --remove argument."
+		echo ""
+		echo "AP:"
+		echo "       Network Name: $networkSsid"
+		#echo "    Network Channel: $networkChannel"
+		echo "         IP Address: $apIpAddress"
+		echo "            Netmask: $dhcpNetmask"
+		echo ""
+		echo "         DHCP Start: $dhcpRangeStart"
+		echo "           DHCP End: $dhcpRangeEnd"
+		echo "    DHCP Lease Time: $dhcpLeaseTime"
 	}
 
 	########## INTERNET CONNECTIVITY SETUP ##########
@@ -525,6 +526,7 @@ removeAp(){
 	
 	echo "Stopping <dnsmasq> service..."
 	systemctl stop dnsmasq
+	pkill dnsmasq
 	
 	# remove iptables IP masquerade rule
 	if masqueradeRuleExists "$internetInterface"; then
@@ -600,7 +602,7 @@ while [ "$#" -gt 0 ]; do  # loop while the number of passed script arguments is 
 			[ -z "$2" ] && printUsage && exit 1
 
 			killRunningAp
-			checkInterfaces "$1" "$2"
+			validateInterfaces "$1" "$2"
 			validateConfigs
 			updateConfigs
 			main
