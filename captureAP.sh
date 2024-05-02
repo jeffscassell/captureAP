@@ -23,9 +23,9 @@ dhcpRangeEnd="10.0.0.20"
 dhcpNetmask="255.255.255.0"
 dhcpLeaseTime="12h"
 
-scriptDirectory=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-hostapdConfigName="$scriptDirectory/hostapd.conf"
-dnsmasqConfigName="$scriptDirectory/dnsmasq.conf"
+#scriptDirectory=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+hostapdConfig="hostapd.conf"
+dnsmasqConfigName="dnsmasq.conf"
 
 ###############################
 ########## FUNCTIONS ##########
@@ -202,51 +202,51 @@ setDhcpLeaseTime(){
 }
 
 hostapdConfigIsValid(){
-	[ -e "$hostapdConfigName" ] || return
-	grep -q "interface=wlan." $hostapdConfigName || return
-	grep -q "channel=." $hostapdConfigName || return
-	grep -q "ssid=." $hostapdConfigName || return
+	[ -e "$hostapdConfig" ] || return
+	grep -q "interface=wlan." $hostapdConfig || return
+	grep -q "channel=." $hostapdConfig || return
+	grep -q "ssid=." $hostapdConfig || return
 }
 
 makeHostapdConfig(){
-	touch $hostapdConfigName
-	echo "########## GENERAL SETTINGS ##########" >> $hostapdConfigName
-	echo "" >> $hostapdConfigName
-	echo "# interface to use for the AP" >> $hostapdConfigName
-	echo "interface=$apInterface" >> $hostapdConfigName
-	echo "" >> $hostapdConfigName
-	echo "# simplified: g=2.4GHz, a=5GHz" >> $hostapdConfigName
-	echo "hw_mode=g" >> $hostapdConfigName
-	echo "channel=2" >> $hostapdConfigName
-	echo "" >> $hostapdConfigName
-	echo "# a limited version of QoS" >> $hostapdConfigName
-	echo "# apparently necessary for full speed on 802.11n/ac/ax connections" >> $hostapdConfigName
-	echo "wmm_enabled=1" >> $hostapdConfigName
-	echo "country_code=US" >> $hostapdConfigName
-	echo "" >> $hostapdConfigName
-	echo "# limit frequencies to those permitted by the country code" >> $hostapdConfigName
-	echo "#ieee80211d=1" >> $hostapdConfigName
-	echo "" >> $hostapdConfigName
-	echo "# 802.11n support" >> $hostapdConfigName
-	echo "ieee80211n=1" >> $hostapdConfigName
-	echo "" >> $hostapdConfigName
-	echo "# 802.11ac support" >> $hostapdConfigName
-	echo "ieee80211ac=1" >> $hostapdConfigName
-	echo "" >> $hostapdConfigName
-	echo "########## SSID SETTINGS ##########" >> $hostapdConfigName
-	echo "" >> $hostapdConfigName
-	echo "ssid=$networkSsid" >> $hostapdConfigName
-	echo "" >> $hostapdConfigName
-	echo "# COMMENT THE BELOW LINES TO DISABLE WPA2 ENCRYPTION" >> $hostapdConfigName
-	echo "" >> $hostapdConfigName
-	echo "# 1=WPA, 2=WEP, 3=both" >> $hostapdConfigName
-	echo "auth_algs=1" >> $hostapdConfigName
-	echo "" >> $hostapdConfigName
-	echo "# WPA2 only" >> $hostapdConfigName
-	echo "wpa=2" >> $hostapdConfigName
-	echo "wpa_key_mgmt=WPA-PSK" >> $hostapdConfigName
-	echo "rsn_pairwise=CCMP" >> $hostapdConfigName
-	echo "wpa_passphrase=changeme" >> $hostapdConfigName
+	touch $hostapdConfig
+	echo "########## GENERAL SETTINGS ##########" >> $hostapdConfig
+	echo "" >> $hostapdConfig
+	echo "# interface to use for the AP" >> $hostapdConfig
+	echo "interface=$apInterface" >> $hostapdConfig
+	echo "" >> $hostapdConfig
+	echo "# simplified: g=2.4GHz, a=5GHz" >> $hostapdConfig
+	echo "hw_mode=g" >> $hostapdConfig
+	echo "channel=2" >> $hostapdConfig
+	echo "" >> $hostapdConfig
+	echo "# a limited version of QoS" >> $hostapdConfig
+	echo "# apparently necessary for full speed on 802.11n/ac/ax connections" >> $hostapdConfig
+	echo "wmm_enabled=1" >> $hostapdConfig
+	echo "country_code=US" >> $hostapdConfig
+	echo "" >> $hostapdConfig
+	echo "# limit frequencies to those permitted by the country code" >> $hostapdConfig
+	echo "#ieee80211d=1" >> $hostapdConfig
+	echo "" >> $hostapdConfig
+	echo "# 802.11n support" >> $hostapdConfig
+	echo "ieee80211n=1" >> $hostapdConfig
+	echo "" >> $hostapdConfig
+	echo "# 802.11ac support" >> $hostapdConfig
+	echo "ieee80211ac=1" >> $hostapdConfig
+	echo "" >> $hostapdConfig
+	echo "########## SSID SETTINGS ##########" >> $hostapdConfig
+	echo "" >> $hostapdConfig
+	echo "ssid=$networkSsid" >> $hostapdConfig
+	echo "" >> $hostapdConfig
+	echo "# COMMENT THE BELOW LINES TO DISABLE WPA2 ENCRYPTION" >> $hostapdConfig
+	echo "" >> $hostapdConfig
+	echo "# 1=WPA, 2=WEP, 3=both" >> $hostapdConfig
+	echo "auth_algs=1" >> $hostapdConfig
+	echo "" >> $hostapdConfig
+	echo "# WPA2 only" >> $hostapdConfig
+	echo "wpa=2" >> $hostapdConfig
+	echo "wpa_key_mgmt=WPA-PSK" >> $hostapdConfig
+	echo "rsn_pairwise=CCMP" >> $hostapdConfig
+	echo "wpa_passphrase=changeme" >> $hostapdConfig
 }
 
 dnsmasqConfigIsValid(){
@@ -281,10 +281,10 @@ updateConfigs(){
 	sed -i "s/dhcp-option=6,.*/dhcp-option=6,$apIpAddress/" $dnsmasqConfigName
 
 	# exit with error if hostapd.conf isn't found
-	[ ! -e "$hostapdConfigName" ] && echo "$error <hostapd.conf> could not be found for updating" && exit 1
+	[ ! -e "$hostapdConfig" ] && echo "$error <hostapd.conf> could not be found for updating" && exit 1
 
 	# update ap config
-	sed -i "s/interface=.*/interface=$apInterface/" $hostapdConfigName
+	sed -i "s/interface=.*/interface=$apInterface/" $hostapdConfig
 }
 
 validateConfigs(){
@@ -331,8 +331,8 @@ readApVariablesFromDnsmasqConfig(){
 }
 
 readApVariablesFromHostapdConfig(){
-	[ -e "$hostapdConfigName" ] || return
-	networkSsid=$(cat $hostapdConfigName | grep "ssid=" | sed "s/ssid=//")
+	[ -e "$hostapdConfig" ] || return
+	networkSsid=$(cat $hostapdConfig | grep "ssid=" | sed "s/ssid=//")
 }
 
 # $1=interface
@@ -412,7 +412,7 @@ main(){
 		echo -n "Launching AP... "
 		# TODO restructure so that this is the last function to call? then on CTRL-C,
 		# perform tear-down automatically?
-		if hostapd -B $hostapdConfigName > /dev/null; then  # TODO make a real running log
+		if hostapd -B $hostapdConfig > /dev/null; then  # TODO make a real running log
 			printPass
 		else
 			printFail
