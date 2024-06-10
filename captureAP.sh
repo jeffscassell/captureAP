@@ -350,8 +350,14 @@ killRunningAp(){
 # make sure script is run as root
 checkForRoot(){
 	if [ ! $(id -u) = 0 ]; then
-		echo "$error Script must be run with super user privileges (root). Exiting."
 		printUsage
+		echo ""
+		echo "#########"
+		echo "# ERROR #"
+		echo "#########"
+		echo ""
+		echo "$error Script must be run with super user privileges (root). Exiting."
+		echo ""
 		exit 1
 	fi
 }

@@ -1,0 +1,3 @@
+wlan1: interface state UNINITIALIZED->COUNTRY_UPDATE
+wlan1: interface state COUNTRY_UPDATE->ENABLED
+wlan1: AP-ENABLED 
